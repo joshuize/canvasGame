@@ -104,3 +104,40 @@ form > input:hover {
   color: white;
   font: 600 1.2vmax cursive;
 }
+
+.leaderboardNameInput {
+  margin: 1vmax;
+  padding: 1vmax;
+  width: 18vw;
+  text-align: center;
+  border: none;
+  outline: none;
+  font: 600 1vmax cursive;
+}
+
+.leaderboardSubmitBtn {
+  padding: 1vmax;
+  border: 2px solid rgb(255, 255, 255);
+  cursor: pointer;
+  width: 12vw;
+  background-color: indianred;
+  color: white;
+  font: 900 1vmax cursive;
+  transition: all 0.5s;
+  margin-bottom: 1vmax;
+}
+.leaderboardSubmitBtn:hover {
+  background-color: rgb(194, 27, 91);
+  box-shadow: 0 0 10px white;
+}
+.leaderboardSubmitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.leaderboardStatus {
+  color: white;
+  font: 600 0.9vmax cursive;
+  margin-bottom: 1vmax;
+  min-height: 1.2vmax;
+}

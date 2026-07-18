@@ -7,6 +7,30 @@ const heavyWeaponSound = new Audio("./music/heavyWeapon.mp3");
 const hugeWeaponSound = new Audio("./music/hugeWeapon.mp3");
 
 introMusic.play();
+
+// --- Leaderboard config ---
+// TODO: replace with your real API Gateway invoke URL once the Lambda + DynamoDB backend is deployed
+const LEADERBOARD_API_URL = "https://REPLACE-ME.execute-api.us-east-1.amazonaws.com/prod/scores";
+
+const submitScore = async (name, score) => {
+  try {
+    const response = await fetch(LEADERBOARD_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, score }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server responded with ${response.status}`);
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to submit score:", err);
+    return { success: false, error: err.message };
+  }
+};
+
 // Basic Environment Setup
 const canvas = document.createElement("canvas");
 document.querySelector(".myGame").appendChild(canvas);
@@ -80,8 +104,45 @@ const gameoverLoader = () => {
   // adding text to playagain button
   gameOverBtn.innerText = "Play Again";
 
-  gameOverBanner.appendChild(highScore);
+  // --- Leaderboard submission UI ---
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.placeholder = "Enter your name";
+  nameInput.maxLength = 20;
+  nameInput.classList.add("leaderboardNameInput");
 
+  const submitScoreBtn = document.createElement("button");
+  submitScoreBtn.innerText = "Submit to Leaderboard";
+  submitScoreBtn.classList.add("leaderboardSubmitBtn");
+
+  const submitStatus = document.createElement("div");
+  submitStatus.classList.add("leaderboardStatus");
+
+  submitScoreBtn.onclick = async () => {
+    const playerName = nameInput.value.trim();
+
+    if (!playerName) {
+      submitStatus.innerText = "Please enter a name first.";
+      return;
+    }
+
+    submitScoreBtn.disabled = true;
+    submitStatus.innerText = "Submitting...";
+
+    const result = await submitScore(playerName, playerScore);
+
+    if (result.success) {
+      submitStatus.innerText = "Score submitted!";
+    } else {
+      submitStatus.innerText = "Couldn't submit score. Try again.";
+      submitScoreBtn.disabled = false;
+    }
+  };
+
+  gameOverBanner.appendChild(highScore);
+  gameOverBanner.appendChild(nameInput);
+  gameOverBanner.appendChild(submitScoreBtn);
+  gameOverBanner.appendChild(submitStatus);
   gameOverBanner.appendChild(gameOverBtn);
 
   // Making reload on clicking playAgain button
