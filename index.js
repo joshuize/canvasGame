@@ -9,8 +9,7 @@ const hugeWeaponSound = new Audio("./music/hugeWeapon.mp3");
 introMusic.play();
 
 // --- Leaderboard config ---
-// TODO: replace with your real API Gateway invoke URL once the Lambda + DynamoDB backend is deployed
-const LEADERBOARD_API_URL = "https://REPLACE-ME.execute-api.us-east-1.amazonaws.com/prod/scores";
+const LEADERBOARD_API_URL = "https://rshxcn6a55.execute-api.us-east-2.amazonaws.com/scores";
 
 const submitScore = async (name, score) => {
   try {
@@ -29,6 +28,50 @@ const submitScore = async (name, score) => {
     console.error("Failed to submit score:", err);
     return { success: false, error: err.message };
   }
+};
+
+const fetchLeaderboard = async () => {
+  try {
+    const response = await fetch(LEADERBOARD_API_URL);
+
+    if (!response.ok) {
+      throw new Error(`Server responded with ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { success: true, scores: data.scores || [] };
+  } catch (err) {
+    console.error("Failed to fetch leaderboard:", err);
+    return { success: false, error: err.message };
+  }
+};
+
+const renderLeaderboard = async (container) => {
+  container.innerHTML = "<div class='leaderboardLoading'>Loading leaderboard...</div>";
+
+  const result = await fetchLeaderboard();
+
+  if (!result.success) {
+    container.innerHTML = "<div class='leaderboardLoading'>Couldn't load leaderboard.</div>";
+    return;
+  }
+
+  if (result.scores.length === 0) {
+    container.innerHTML = "<div class='leaderboardLoading'>No scores yet. Be the first!</div>";
+    return;
+  }
+
+  const list = document.createElement("ol");
+  list.classList.add("leaderboardList");
+
+  result.scores.forEach((entry) => {
+    const item = document.createElement("li");
+    item.innerText = `${entry.name} — ${entry.score}`;
+    list.appendChild(item);
+  });
+
+  container.innerHTML = "";
+  container.appendChild(list);
 };
 
 // Basic Environment Setup
@@ -133,16 +176,26 @@ const gameoverLoader = () => {
 
     if (result.success) {
       submitStatus.innerText = "Score submitted!";
+      renderLeaderboard(leaderboardContainer);
     } else {
       submitStatus.innerText = "Couldn't submit score. Try again.";
       submitScoreBtn.disabled = false;
     }
   };
 
+  const leaderboardHeading = document.createElement("div");
+  leaderboardHeading.innerText = "Top Scores";
+  leaderboardHeading.classList.add("leaderboardHeading");
+
+  const leaderboardContainer = document.createElement("div");
+  leaderboardContainer.classList.add("leaderboardContainer");
+
   gameOverBanner.appendChild(highScore);
   gameOverBanner.appendChild(nameInput);
   gameOverBanner.appendChild(submitScoreBtn);
   gameOverBanner.appendChild(submitStatus);
+  gameOverBanner.appendChild(leaderboardHeading);
+  gameOverBanner.appendChild(leaderboardContainer);
   gameOverBanner.appendChild(gameOverBtn);
 
   // Making reload on clicking playAgain button
@@ -153,6 +206,8 @@ const gameoverLoader = () => {
   gameOverBanner.classList.add("gameover");
 
   document.querySelector("body").appendChild(gameOverBanner);
+
+  renderLeaderboard(leaderboardContainer);
 };
 
 // ------------------- Creating Player, Enemy, Weapon, Etc Classes-----------------------------------

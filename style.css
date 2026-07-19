@@ -141,3 +141,36 @@ form > input:hover {
   margin-bottom: 1vmax;
   min-height: 1.2vmax;
 }
+
+.leaderboardHeading {
+  color: white;
+  font: 900 1.3vmax cursive;
+  margin-top: 1vmax;
+}
+
+.leaderboardContainer {
+  max-height: 20vh;
+  overflow-y: auto;
+  width: 20vw;
+  margin: 1vmax 0;
+}
+
+.leaderboardLoading {
+  color: white;
+  font: 600 0.9vmax cursive;
+  opacity: 0.8;
+}
+
+.leaderboardList {
+  list-style-position: inside;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+
+.leaderboardList li {
+  color: white;
+  font: 600 1vmax cursive;
+  padding: 0.4vmax 0.8vmax;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
