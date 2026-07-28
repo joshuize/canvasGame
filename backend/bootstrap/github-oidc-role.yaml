@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  One-time bootstrap: GitHub OIDC provider + deploy role for the canvasGame
+  leaderboard backend. Deploy this ONCE, by hand, before the GitHub Actions
+  pipeline can assume a role. Not part of the CI/CD pipeline itself.
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Default: joshuize
+  RepoName:
+    Type: String
+    Default: canvasGame
+  CreateOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >
+      Set to "false" if your AWS account already has a
+      token.actions.githubusercontent.com OIDC provider (an account can only
+      have one). Check first: aws iam list-open-id-connect-providers
+
+Conditions:
+  ShouldCreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  GitHubActionsDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "gha-deploy-${RepoName}"
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOrg}/${RepoName}:ref:refs/heads/master"
+      Policies:
+        - PolicyName: SamDeployPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudFormationDeploy
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ListStackResources
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteChangeSet
+                Resource:
+                  - !Sub "arn:aws:cloudformation:*:${AWS::AccountId}:stack/canvasGame-leaderboard-*/*"
+
+              - Sid: SamArtifactsBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:CreateBucket
+                  - s3:GetBucketLocation
+                  - s3:PutBucketPolicy
+                Resource:
+                  - "arn:aws:s3:::aws-sam-cli-managed-default-*"
+                  - "arn:aws:s3:::aws-sam-cli-managed-default-*/*"
+
+              - Sid: LambdaDeploy
+                Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:GetFunction
+                  - lambda:DeleteFunction
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:GetFunctionConfiguration
+                  - lambda:ListVersionsByFunction
+                  - lambda:PublishVersion
+                  - lambda:TagResource
+                Resource:
+                  - !Sub "arn:aws:lambda:*:${AWS::AccountId}:function:canvasGame-leaderboard-*"
+
+              - Sid: ApiGatewayDeploy
+                Effect: Allow
+                Action:
+                  - apigateway:*
+                Resource:
+                  - !Sub "arn:aws:apigateway:*::/apis*"
+                  - !Sub "arn:aws:apigateway:*::/apis/*"
+
+              - Sid: DynamoDbDeploy
+                Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:DeleteTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:TagResource
+                Resource:
+                  - !Sub "arn:aws:dynamodb:*:${AWS::AccountId}:table/canvasGame-leaderboard-*"
+                  - !Sub "arn:aws:dynamodb:*:${AWS::AccountId}:table/canvasGame-leaderboard-*/index/*"
+
+              - Sid: IamForLambdaExecRoles
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:TagRole
+                  - iam:PassRole
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/canvasGame-leaderboard-*"
+
+              - Sid: LogsForLambda
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DescribeLogGroups
+                  - logs:TagResource
+                Resource:
+                  - !Sub "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/canvasGame-leaderboard-*"
+
+Outputs:
+  DeployRoleArn:
+    Description: >
+      Add this as a GitHub Actions repository VARIABLE named
+      AWS_DEPLOY_ROLE_ARN (Settings > Secrets and variables > Actions > Variables)
+    Value: !GetAtt GitHubActionsDeployRole.Arn

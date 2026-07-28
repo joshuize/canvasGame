@@ -1,0 +1,6 @@
+# Windows / OneDrive folder metadata
+desktop.ini
+Thumbs.db
+
+# SAM build output
+backend/.aws-sam/

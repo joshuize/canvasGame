@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Leaderboard backend for canvasGame - DynamoDB + Lambda + HTTP API.
+  Deployed via GitHub Actions using OIDC (see backend/bootstrap/github-oidc-role.yaml).
+
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, prod]
+  AllowedOrigin:
+    Type: String
+    Description: CloudFront origin allowed to call this API (CORS)
+    Default: "https://d17ulm0ugyx5z0.cloudfront.net"
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 5
+    MemorySize: 128
+    Architectures: [arm64]
+
+Resources:
+
+  LeaderboardTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "canvasGame-leaderboard-${Stage}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: scoreId
+          AttributeType: S
+        - AttributeName: gameId
+          AttributeType: S
+        - AttributeName: score
+          AttributeType: N
+      KeySchema:
+        - AttributeName: scoreId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: Scoring
+          KeySchema:
+            - AttributeName: gameId
+              KeyType: HASH
+            - AttributeName: score
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  LeaderboardHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Stage
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowMethods: [GET, POST, OPTIONS]
+        AllowHeaders: ["content-type"]
+
+  SubmitScoreFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/submitScore/
+      Handler: index.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaderboardTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaderboardTable
+      Events:
+        SubmitScore:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LeaderboardHttpApi
+            Path: /scores
+            Method: POST
+
+  GetScoresFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/getScores/
+      Handler: index.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaderboardTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaderboardTable
+      Events:
+        GetScores:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref LeaderboardHttpApi
+            Path: /scores
+            Method: GET
+
+Outputs:
+  ApiUrl:
+    Description: Invoke URL for the leaderboard API
+    Value: !Sub "https://${LeaderboardHttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}/scores"
+  TableName:
+    Value: !Ref LeaderboardTable
