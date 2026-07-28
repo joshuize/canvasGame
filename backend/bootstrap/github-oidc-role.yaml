@@ -19,6 +19,13 @@ Parameters:
       Set to "false" if your AWS account already has a
       token.actions.githubusercontent.com OIDC provider (an account can only
       have one). Check first: aws iam list-open-id-connect-providers
+  EnvironmentName:
+    Type: String
+    Default: prod
+    Description: >
+      Must match the `environment:` name set on the deploy job in
+      .github/workflows/deploy-backend.yml — GitHub issues a different OIDC
+      subject claim when a job specifies an environment. 
 
 Conditions:
   ShouldCreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
@@ -52,7 +59,7 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
-                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOrg}/${RepoName}:ref:refs/heads/master"
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOrg}/${RepoName}:environment:${EnvironmentName}"
       Policies:
         - PolicyName: SamDeployPermissions
           PolicyDocument:
